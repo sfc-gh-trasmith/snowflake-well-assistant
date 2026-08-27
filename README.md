@@ -4,6 +4,8 @@
 
 AI-powered oil & gas well analytics combining a Cortex Agent (natural language chat), real-time well health scoring (ML), and interactive map visualizations — all running on Snowflake.
 
+![Demo Screenshot](assets/demo.png)
+
 ## Features
 
 - **Well 360** — per-well deep-dive with health score, production history, ESP sensor data, events timeline, and inline AI chat
