@@ -52,7 +52,9 @@ flowchart LR
 | `WELL_PRODUCTION` | Daily oil/gas/water production volumes |
 | `WELL_HISTORY` | Operational events (indexed by Cortex Search) |
 | `WELL_SENSORS` | ESP sensor readings at 6-hr intervals |
-| `WELL_HEALTH_FEATURES` | Dynamic Table — real-time feature store |
+| `WELL_COMPLETIONS` | Frac completion stage data |
+| `WELL_HEALTH_FEATURES` | Dynamic Table — real-time ML feature store |
+| `FORECASTED_PRODUCTION` | 30-day decline curve forecasts |
 
 ## Tech Stack
 
@@ -164,16 +166,21 @@ snowflake-well-assistant/
 │   ├── 02_feature_store.ipynb
 │   ├── 03_training_job.ipynb
 │   ├── 04_deploy_inference.ipynb
+│   ├── snowpark_session.py      # Snowpark connection helper
 │   └── utils.py
 ├── snowflake/
 │   ├── setup.sql               # Infrastructure (tables, search, SPCS)
 │   ├── semantic_view.sql       # Cortex Analyst semantic views
+│   ├── semantic_model.yaml     # Cortex Analyst semantic model
 │   ├── agent.sql               # Cortex Agent definition
 │   ├── workover_agent_spec.json # Workover Report Agent config
 │   └── service-spec.yaml       # SPCS container spec
 ├── scripts/
 │   ├── generate_realistic_data.py  # Synthetic data (2,000 wells)
-│   └── upload_to_snowflake.py      # CSV → Snowflake loader
+│   ├── upload_to_snowflake.py      # CSV → Snowflake loader
+│   ├── train_health_model.py       # Isolation Forest training
+│   └── train_well_forecast.py      # Decline curve forecasting
+├── data/                           # Generated CSV datasets
 ├── Dockerfile
 ├── build_push.sh
 └── pyproject.toml
