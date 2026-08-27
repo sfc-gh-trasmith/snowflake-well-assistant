@@ -187,9 +187,3 @@ snowflake-well-assistant/
 ├── build_push.sh
 └── pyproject.toml
 ```
-
----
-
-## License
-
-MIT
