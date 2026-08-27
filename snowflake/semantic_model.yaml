@@ -1,0 +1,175 @@
+name: well_analytics
+description: Semantic model for oil & gas well production analytics. For maintenance events and failures, use Cortex Search.
+
+tables:
+  - name: WELL_METADATA
+    description: Master well metadata including location, operator, and completion details
+    base_table:
+      database: ENERGY_DEMO
+      schema: WELLS
+      table: WELL_METADATA
+    primary_key:
+      columns:
+        - API_NO
+    dimensions:
+      - name: api_no
+        expr: API_NO
+        data_type: VARCHAR
+        description: Unique API number identifying the well
+      - name: well_name
+        expr: WELL_NAME
+        data_type: VARCHAR
+        description: Human-readable well name (e.g., Thunderbolt 1H). Use exact match when filtering.
+      - name: field
+        expr: FIELD
+        data_type: VARCHAR
+        description: Oil/gas field where the well is located
+      - name: county
+        expr: COUNTY
+        data_type: VARCHAR
+        description: County where well is located
+      - name: operator
+        expr: OPERATOR
+        data_type: VARCHAR
+        description: Company operating the well
+      - name: status
+        expr: STATUS
+        data_type: VARCHAR
+        description: Current operational status (e.g., ACTIVE, SHUT-IN)
+      - name: formation
+        expr: FORMATION
+        data_type: VARCHAR
+        description: Target geological formation
+      - name: spud_date
+        expr: SPUD_DATE
+        data_type: DATE
+        description: Date when drilling began
+      - name: first_prod_date
+        expr: FIRST_PROD_DATE
+        data_type: DATE
+        description: Date of first production
+    measures:
+      - name: well_count
+        expr: COUNT(DISTINCT API_NO)
+        data_type: NUMBER
+        description: Count of unique wells
+
+  - name: WELL_PRODUCTION
+    description: Daily production volumes for oil, gas, and water by well
+    base_table:
+      database: ENERGY_DEMO
+      schema: WELLS
+      table: WELL_PRODUCTION
+    primary_key:
+      columns:
+        - API_NO
+        - PRODUCTION_DATE
+    dimensions:
+      - name: production_date
+        expr: PRODUCTION_DATE
+        data_type: DATE
+        description: Date of production measurement
+    measures:
+      - name: oil_bbl
+        expr: OIL_BBL
+        data_type: NUMBER
+        description: Oil production volume in barrels per day
+      - name: gas_mcf
+        expr: GAS_MCF
+        data_type: NUMBER
+        description: Gas production volume in thousand cubic feet per day
+      - name: water_bbl
+        expr: WATER_BBL
+        data_type: NUMBER
+        description: Water production volume in barrels per day
+      - name: runtime_hours
+        expr: RUNTIME_HOURS
+        data_type: NUMBER
+        description: Equipment runtime hours per day
+      - name: total_oil
+        expr: SUM(OIL_BBL)
+        data_type: NUMBER
+        description: Total oil production in barrels
+      - name: total_gas
+        expr: SUM(GAS_MCF)
+        data_type: NUMBER
+        description: Total gas production in MCF
+      - name: total_water
+        expr: SUM(WATER_BBL)
+        data_type: NUMBER
+        description: Total water production in barrels
+      - name: avg_oil
+        expr: AVG(OIL_BBL)
+        data_type: NUMBER
+        description: Average daily oil production in barrels
+      - name: avg_water_cut
+        expr: AVG(WATER_BBL / NULLIF(OIL_BBL + WATER_BBL, 0))
+        data_type: NUMBER
+        description: Average water cut ratio (water / total liquid). Higher values indicate more water production.
+
+relationships:
+  - name: production_to_metadata
+    left_table: WELL_PRODUCTION
+    right_table: WELL_METADATA
+    join_type: left
+    relationship_columns:
+      - left_column: API_NO
+        right_column: API_NO
+
+verified_queries:
+  - name: decline_rate_for_well
+    question: What is the decline rate for [well name]?
+    sql: |
+      WITH first_last AS (
+        SELECT m.WELL_NAME,
+          FIRST_VALUE(p.OIL_BBL) OVER (PARTITION BY m.WELL_NAME ORDER BY p.PRODUCTION_DATE) as FIRST_OIL,
+          LAST_VALUE(p.OIL_BBL) OVER (PARTITION BY m.WELL_NAME ORDER BY p.PRODUCTION_DATE 
+            ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as LAST_OIL,
+          FIRST_VALUE(p.PRODUCTION_DATE) OVER (PARTITION BY m.WELL_NAME ORDER BY p.PRODUCTION_DATE) as FIRST_DATE,
+          LAST_VALUE(p.PRODUCTION_DATE) OVER (PARTITION BY m.WELL_NAME ORDER BY p.PRODUCTION_DATE 
+            ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as LAST_DATE
+        FROM ENERGY_DEMO.WELLS.WELL_PRODUCTION p
+        JOIN ENERGY_DEMO.WELLS.WELL_METADATA m ON p.API_NO = m.API_NO
+        WHERE m.WELL_NAME = :well_name
+      )
+      SELECT DISTINCT WELL_NAME,
+        FIRST_OIL as INITIAL_PRODUCTION_BBL,
+        LAST_OIL as CURRENT_PRODUCTION_BBL,
+        ROUND((FIRST_OIL - LAST_OIL) / NULLIF(FIRST_OIL, 0) * 100, 2) as DECLINE_RATE_PCT,
+        FIRST_DATE as START_DATE,
+        LAST_DATE as END_DATE
+      FROM first_last
+
+  - name: water_cut_by_well
+    question: Show me wells with high water cut
+    sql: |
+      SELECT m.WELL_NAME, m.FIELD,
+        ROUND(AVG(p.WATER_BBL / NULLIF(p.OIL_BBL + p.WATER_BBL, 0)) * 100, 2) as WATER_CUT_PCT
+      FROM ENERGY_DEMO.WELLS.WELL_PRODUCTION p
+      JOIN ENERGY_DEMO.WELLS.WELL_METADATA m ON p.API_NO = m.API_NO
+      GROUP BY m.WELL_NAME, m.FIELD
+      HAVING AVG(p.WATER_BBL / NULLIF(p.OIL_BBL + p.WATER_BBL, 0)) > 0.5
+      ORDER BY WATER_CUT_PCT DESC
+
+  - name: production_for_well
+    question: What is the production for [well name]?
+    sql: |
+      SELECT m.WELL_NAME,
+        SUM(p.OIL_BBL) as TOTAL_OIL,
+        SUM(p.GAS_MCF) as TOTAL_GAS,
+        SUM(p.WATER_BBL) as TOTAL_WATER
+      FROM ENERGY_DEMO.WELLS.WELL_PRODUCTION p
+      JOIN ENERGY_DEMO.WELLS.WELL_METADATA m ON p.API_NO = m.API_NO
+      WHERE m.WELL_NAME = :well_name
+      GROUP BY m.WELL_NAME
+
+  - name: top_producing_wells
+    question: Which wells have the highest oil production?
+    sql: |
+      SELECT m.WELL_NAME, m.FIELD,
+        SUM(p.OIL_BBL) as TOTAL_OIL
+      FROM ENERGY_DEMO.WELLS.WELL_PRODUCTION p
+      JOIN ENERGY_DEMO.WELLS.WELL_METADATA m ON p.API_NO = m.API_NO
+      GROUP BY m.WELL_NAME, m.FIELD
+      ORDER BY TOTAL_OIL DESC
+      LIMIT 10

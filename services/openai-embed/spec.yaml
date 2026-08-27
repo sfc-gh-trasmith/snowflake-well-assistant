@@ -1,0 +1,25 @@
+spec:
+  containers:
+    - name: openai-embed
+      image: /energy_demo/wells/well_app_repo/openai-embed-service:latest
+      env:
+        PORT: "8080"
+      secrets:
+        - snowflakeSecret:
+            objectName: ENERGY_DEMO.WELLS.OPENAI_API_KEY
+          envVarName: OPENAI_API_KEY
+          secretKeyRef: secret_string
+      readinessProbe:
+        port: 8080
+        path: /health
+      resources:
+        requests:
+          memory: 512M
+          cpu: 0.5
+        limits:
+          memory: 1G
+          cpu: 1
+  endpoints:
+    - name: embed
+      port: 8080
+      public: true

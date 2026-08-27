@@ -1,0 +1,21 @@
+spec:
+  containers:
+    - name: well-analytics
+      image: /ENERGY_DEMO/WELLS/WELL_APP_REPO/well-analytics-app:latest
+      env:
+        SNOWFLAKE_WAREHOUSE: COMPUTE_WH
+        PORT: "8000"
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+      readinessProbe:
+        port: 8000
+        path: /api/health
+  endpoints:
+    - name: app
+      port: 8000
+      public: true
