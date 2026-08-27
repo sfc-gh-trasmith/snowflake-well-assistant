@@ -1,5 +1,7 @@
 # Snow Well Assistant
 
+> **This project is for demonstration purposes only.** It uses synthetic data and is not intended for production use. It showcases Snowflake Cortex AI, ML, and SPCS capabilities in an upstream oil & gas context.
+
 AI-powered oil & gas well analytics combining a Cortex Agent (natural language chat), real-time well health scoring (ML), and interactive map visualizations — all running on Snowflake.
 
 ## Features
